@@ -8,12 +8,6 @@ package webview
 #cgo linux openbsd freebsd netbsd LDFLAGS: -ldl
 #cgo linux openbsd freebsd netbsd pkg-config: gtk+-3.0 webkit2gtk-4.1
 
-#cgo darwin CXXFLAGS: -DWEBVIEW_COCOA -std=c++11
-#cgo darwin LDFLAGS: -framework WebKit -ldl
-
-#cgo windows CXXFLAGS: -DWEBVIEW_EDGE -std=c++14 -I${SRCDIR}/libs/mswebview2/include
-#cgo windows LDFLAGS: -static -ladvapi32 -lole32 -lshell32 -lshlwapi -luser32 -lversion
-
 #include "webview.h"
 
 #include <stdlib.h>
@@ -32,8 +26,6 @@ import (
 	"sync"
 	"unsafe"
 
-	_ "github.com/180-studios/webview_go/libs/mswebview2"
-	_ "github.com/180-studios/webview_go/libs/mswebview2/include"
 	_ "github.com/180-studios/webview_go/libs/webview"
 	_ "github.com/180-studios/webview_go/libs/webview/include"
 )
@@ -78,9 +70,7 @@ type WebView interface {
 	// Destroy destroys a webview and closes the native window.
 	Destroy()
 
-	// Window returns a native window handle pointer. When using GTK backend the
-	// pointer is GtkWindow pointer, when using Cocoa backend the pointer is
-	// NSWindow pointer, when using Win32 backend the pointer is HWND pointer.
+	// Window returns a native window handle pointer. This will be a GTK GtkWindow pointer.
 	Window() unsafe.Pointer
 
 	// SetTitle updates the title of the native window. Must be called from the UI
