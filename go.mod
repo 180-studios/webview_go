@@ -1,3 +1,3 @@
 module github.com/180-studios/webview_go
 
-go 1.13
+go 1.25
