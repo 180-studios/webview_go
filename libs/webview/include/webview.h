@@ -362,8 +362,6 @@ WEBVIEW_API const webview_version_info_t *webview_version(void);
 #ifndef WEBVIEW_DEPRECATED
 #if __cplusplus >= 201402L
 #define WEBVIEW_DEPRECATED(reason) [[deprecated(reason)]]
-#elif defined(_MSC_VER)
-#define WEBVIEW_DEPRECATED(reason) __declspec(deprecated(reason))
 #else
 #define WEBVIEW_DEPRECATED(reason) __attribute__((deprecated(reason)))
 #endif
