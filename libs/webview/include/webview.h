@@ -44,21 +44,13 @@
  * - Define @c WEBVIEW_STATIC when building or using a static library.
  */
 #ifndef WEBVIEW_API
-#if defined(WEBVIEW_SHARED) || defined(WEBVIEW_BUILD_SHARED)
-#if defined(_WIN32) || defined(__CYGWIN__)
-#if defined(WEBVIEW_BUILD_SHARED)
-#define WEBVIEW_API __declspec(dllexport)
-#else
-#define WEBVIEW_API __declspec(dllimport)
-#endif
-#else
-#define WEBVIEW_API __attribute__((visibility("default")))
-#endif
-#elif !defined(WEBVIEW_STATIC) && defined(__cplusplus)
-#define WEBVIEW_API inline
-#else
-#define WEBVIEW_API extern
-#endif
+  #if defined(WEBVIEW_SHARED) || defined(WEBVIEW_BUILD_SHARED)
+    #define WEBVIEW_API __attribute__((visibility("default")))
+  #elif !defined(WEBVIEW_STATIC) && defined(__cplusplus)
+    #define WEBVIEW_API inline
+  #else
+    #define WEBVIEW_API extern
+  #endif
 #endif
 
 /// @name Version
