@@ -153,12 +153,12 @@ type URISchemeResponse struct {
 }
 
 var (
-	m           sync.Mutex
-	index       uintptr
-	dispatch    = map[uintptr]func(){}
-	bindings    = map[uintptr]func(id, req string) (interface{}, error){}
-	uriSchemes  = map[uintptr]func(uri string) (URISchemeResponse, error){}
-	uriRequests = map[uintptr]unsafe.Pointer{} // Track request pointers for responses
+	m               sync.Mutex
+	index           uintptr
+	dispatch        = map[uintptr]func(){}
+	bindings        = map[uintptr]func(id, req string) (interface{}, error){}
+	uriSchemes      = map[uintptr]func(uri string) (URISchemeResponse, error){}
+	uriSchemesIndex = map[string]uintptr{}
 )
 
 func boolToInt(b bool) C.int {
@@ -389,6 +389,7 @@ func (w *webview) RegisterURIScheme(scheme string, handler func(uri string) (URI
 	for ; uriSchemes[index] != nil; index++ {
 	}
 	uriSchemes[index] = handler
+	uriSchemesIndex[scheme] = index
 	m.Unlock()
 
 	cscheme := C.CString(scheme)
@@ -401,5 +402,12 @@ func (w *webview) UnregisterURIScheme(scheme string) error {
 	cscheme := C.CString(scheme)
 	defer C.free(unsafe.Pointer(cscheme))
 	C.webview_unregister_uri_scheme(w.w, cscheme)
+
+	m.Lock()
+	defer m.Unlock()
+	idx := uriSchemesIndex[scheme]
+	delete(uriSchemesIndex, scheme)
+	delete(uriSchemes, idx)
+
 	return nil
 }

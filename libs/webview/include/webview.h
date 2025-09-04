@@ -1138,12 +1138,10 @@ constexpr auto webkit_web_view_run_javascript =
         "webkit_web_view_run_javascript");
 } // namespace webkit_symbols
 
-// Forward declaration for C callback
 extern "C" {
-void _webview_uri_scheme_cb(const char* uri, const char* path, unsigned long request_id, void *arg, unsigned long index);
+void _webview_uri_scheme_cb(const char* uri, unsigned long request_id, void *arg, unsigned long index);
 }
 
-// URI scheme callback context for C++ to Go communication
 struct uri_scheme_context {
   unsigned long index;
   void* engine;
@@ -1304,10 +1302,9 @@ public:
     }
   }
 
-  // Register a custom URI scheme handler
   bool register_uri_scheme(const std::string& scheme, unsigned long index) {
     if (m_uri_schemes.count(scheme) > 0) {
-      return false; // Scheme already registered
+      return false;
     }
     
     WebKitWebContext* context = webkit_web_view_get_context(WEBKIT_WEB_VIEW(m_webview));
@@ -1315,11 +1312,9 @@ public:
       return false;
     }
     
-    // Create callback context
     uri_scheme_context* ctx = new uri_scheme_context{index, this};
     m_uri_schemes[scheme] = ctx;
     
-    // Register the scheme with WebKit
     webkit_web_context_register_uri_scheme(context, scheme.c_str(),
       [](WebKitURISchemeRequest* request, gpointer user_data) {
         auto* ctx = static_cast<uri_scheme_context*>(user_data);
@@ -1330,65 +1325,51 @@ public:
     return true;
   }
 
-  // Unregister a custom URI scheme handler
   bool unregister_uri_scheme(const std::string& scheme) {
     auto it = m_uri_schemes.find(scheme);
     if (it == m_uri_schemes.end()) {
       return false;
     }
     
-    // Clean up the context
     delete it->second;
     m_uri_schemes.erase(it);
     
-    // Note: WebKit doesn't provide an unregister function, so we just remove our handler
     return true;
   }
 
-  // Send response for a URI scheme request
   void uri_scheme_response(unsigned long request_id, int status, const char *content_type, const char *data, size_t data_length) {
     auto it = m_pending_requests.find(request_id);
     if (it == m_pending_requests.end()) {
-      return; // Request not found
+      return;
     }
     
     WebKitURISchemeRequest* request = it->second;
-    m_pending_requests.erase(it); // Remove from pending requests
+    m_pending_requests.erase(it);
     
-    // Create a memory input stream from the data
     GInputStream* stream = g_memory_input_stream_new_from_data(data, data_length, nullptr);
     
-    // Create the response object
     WebKitURISchemeResponse* response = webkit_uri_scheme_response_new(stream, data_length);
     
-    // Set the status code and reason phrase
     webkit_uri_scheme_response_set_status(response, status, nullptr);
     
-    // Set the content type if provided
     if (content_type && strlen(content_type) > 0) {
       webkit_uri_scheme_response_set_content_type(response, content_type);
     }
     
-    // Finish the request with the response
     webkit_uri_scheme_request_finish_with_response(request, response);
     
-    // Clean up
     g_object_unref(response);
     g_object_unref(stream);
   }
 
 private:
-  // Handle URI scheme requests from WebKit
   void handle_uri_scheme_request(WebKitURISchemeRequest* request, unsigned long index) {
     const char* uri = webkit_uri_scheme_request_get_uri(request);
-    const char* path = webkit_uri_scheme_request_get_path(request);
     
-    // Generate unique request ID and store the request
     unsigned long request_id = m_next_request_id.fetch_add(1, std::memory_order_relaxed);
     m_pending_requests[request_id] = request;
     
-    // Call the C callback with extracted data and the request ID
-    _webview_uri_scheme_cb(uri, path, request_id, static_cast<void*>(this), index);
+    _webview_uri_scheme_cb(uri, request_id, static_cast<void*>(this), index);
   }
 
   static char *get_string_from_js_result(WebKitJavascriptResult *r) {
@@ -1451,10 +1432,9 @@ private:
   GtkWidget *m_window{};
   GtkWidget *m_webview{};
   
-  // URI scheme management
   std::map<std::string, uri_scheme_context*> m_uri_schemes;
-  std::map<unsigned long, WebKitURISchemeRequest*> m_pending_requests; // Track requests by ID
-  std::atomic<unsigned long> m_next_request_id{1}; // Atomic counter for request IDs
+  std::map<unsigned long, WebKitURISchemeRequest*> m_pending_requests;
+  std::atomic<unsigned long> m_next_request_id{1};
 };
 
 } // namespace detail

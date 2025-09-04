@@ -26,9 +26,7 @@ static void _webview_binding_cb(const char *id, const char *req, void *arg) {
     _webviewBindingGoCallback(ctx->w, (char *)id, (char *)req, ctx->index);
 }
 
-// URI scheme callback function that webview library calls
-void _webview_uri_scheme_cb(const char* uri, const char* path, unsigned long request_id, void *arg, unsigned long index) {
-    // Extract the webview instance from the arg (which is the engine pointer)
+void _webview_uri_scheme_cb(const char* uri, unsigned long request_id, void *arg, unsigned long index) {
     webview_t w = (webview_t)arg;
     _webviewUriSchemeGoCallback(w, (char *)uri, request_id, index);
 }
