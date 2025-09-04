@@ -50,6 +50,6 @@ void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme) {
 }
 
 void CgoWebViewURISchemeResponse(webview_t w, unsigned long request_id, int status, 
-                                 const char *content_type, const char *data, size_t data_length) {
-    webview_uri_scheme_response(w, request_id, status, content_type, data, data_length);
+                                 const char *content_type, const void *data, size_t data_length) {
+    webview_uri_scheme_response(w, request_id, status, content_type, (const char *)data, data_length);
 }

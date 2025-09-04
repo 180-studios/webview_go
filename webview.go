@@ -12,13 +12,14 @@ package webview
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 void CgoWebViewDispatch(webview_t w, uintptr_t arg);
 void CgoWebViewBind(webview_t w, const char *name, uintptr_t index);
 void CgoWebViewUnbind(webview_t w, const char *name);
 void CgoWebViewRegisterURIScheme(webview_t w, const char *scheme, uintptr_t index);
 void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme);
-void CgoWebViewURISchemeResponse(webview_t w, unsigned long request_id, int status, const char *content_type, const char *data, size_t data_length);
+void CgoWebViewURISchemeResponse(webview_t w, unsigned long request_id, int status, const char *content_type, const void *data, size_t data_length);
 */
 import "C"
 import (
@@ -285,22 +286,24 @@ func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, request_id C.ulong,
 	f := uriSchemes[uintptr(index)]
 	m.Unlock()
 
+	// TOOD: confirm memory is freed by the underlying library, or work out how
+	// to safely free it after it is no longer needed
+
 	if f != nil {
 		response, err := f(C.GoString(uri))
 		if err != nil {
 			cContentType := C.CString("text/html")
-			defer C.free(unsafe.Pointer(cContentType))
-			cData := C.CString("")
-			defer C.free(unsafe.Pointer(cData))
+			cData := unsafe.Pointer(C.CString(""))
 			C.CgoWebViewURISchemeResponse(w, request_id, C.int(500), cContentType, cData, C.ulong(0))
 		} else {
 			cContentType := C.CString(response.ContentType)
-			defer C.free(unsafe.Pointer(cContentType))
 
-			// TODO: This string conversion may corrupt binary data (images, etc.)
-			// For now, this works for text files but may cause issues with binary files
-			cData := C.CString(string(response.Data))
-			defer C.free(unsafe.Pointer(cData))
+			var cData unsafe.Pointer
+			if len(response.Data) > 0 {
+				cData = C.CBytes(response.Data)
+			} else {
+				cData = unsafe.Pointer(C.CString(""))
+			}
 			C.CgoWebViewURISchemeResponse(w, request_id, C.int(response.Status), cContentType, cData, C.ulong(len(response.Data)))
 		}
 	}
