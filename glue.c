@@ -15,7 +15,7 @@ struct uri_scheme_context {
 
 void _webviewDispatchGoCallback(void *);
 void _webviewBindingGoCallback(webview_t, char *, char *, uintptr_t);
-void _webviewUriSchemeGoCallback(webview_t, char *, char *, unsigned long, uintptr_t);
+void _webviewUriSchemeGoCallback(webview_t, char *, unsigned long, uintptr_t);
 
 static void _webview_dispatch_cb(webview_t w, void *arg) {
     _webviewDispatchGoCallback(arg);
@@ -30,7 +30,7 @@ static void _webview_binding_cb(const char *id, const char *req, void *arg) {
 void _webview_uri_scheme_cb(const char* uri, const char* path, unsigned long request_id, void *arg, unsigned long index) {
     // Extract the webview instance from the arg (which is the engine pointer)
     webview_t w = (webview_t)arg;
-    _webviewUriSchemeGoCallback(w, (char *)uri, (char *)path, request_id, index);
+    _webviewUriSchemeGoCallback(w, (char *)uri, request_id, index);
 }
 
 void CgoWebViewDispatch(webview_t w, uintptr_t arg) {

@@ -125,19 +125,19 @@ type WebView interface {
 
 	// RegisterURIScheme registers a custom URI scheme handler.
 	// When a URL with the registered scheme is accessed, the handler function
-	// will be called with the URI and path. The handler should return a response
+	// will be called with the full URI. The handler should return a response
 	// and optionally an error. If an error is returned, a 500 error response
 	// will be automatically sent.
 	//
 	// Example:
-	//   w.RegisterURIScheme("myapp", func(uri, path string) (URISchemeResponse, error) {
+	//   w.RegisterURIScheme("myapp", func(uri string) (URISchemeResponse, error) {
 	//       return URISchemeResponse{
 	//           Status: 200,
 	//           ContentType: "text/html",
-	//           Data: []byte("<h1>Hello from " + path + "</h1>"),
+	//           Data: []byte("<h1>Hello from " + uri + "</h1>"),
 	//       }, nil
 	//   })
-	RegisterURIScheme(scheme string, handler func(uri, path string) (URISchemeResponse, error)) error
+	RegisterURIScheme(scheme string, handler func(uri string) (URISchemeResponse, error)) error
 
 	// UnregisterURIScheme removes a previously registered URI scheme handler.
 	UnregisterURIScheme(scheme string) error
@@ -158,7 +158,7 @@ var (
 	index       uintptr
 	dispatch    = map[uintptr]func(){}
 	bindings    = map[uintptr]func(id, req string) (interface{}, error){}
-	uriSchemes  = map[uintptr]func(uri, path string) (URISchemeResponse, error){}
+	uriSchemes  = map[uintptr]func(uri string) (URISchemeResponse, error){}
 	uriRequests = map[uintptr]unsafe.Pointer{} // Track request pointers for responses
 )
 
@@ -276,13 +276,13 @@ func _webviewBindingGoCallback(w C.webview_t, id *C.char, req *C.char, index uin
 }
 
 //export _webviewUriSchemeGoCallback
-func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, path *C.char, request_id C.ulong, index uintptr) {
+func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, request_id C.ulong, index uintptr) {
 	m.Lock()
 	f := uriSchemes[uintptr(index)]
 	m.Unlock()
 
 	if f != nil {
-		response, err := f(C.GoString(uri), C.GoString(path))
+		response, err := f(C.GoString(uri))
 		if err != nil {
 			// Return error response
 			errorData := []byte(fmt.Sprintf("<h1>Error</h1><p>%s</p>", err.Error()))
@@ -384,7 +384,7 @@ func (w *webview) Unbind(name string) error {
 	return nil
 }
 
-func (w *webview) RegisterURIScheme(scheme string, handler func(uri, path string) (URISchemeResponse, error)) error {
+func (w *webview) RegisterURIScheme(scheme string, handler func(uri string) (URISchemeResponse, error)) error {
 	if handler == nil {
 		return errors.New("handler function cannot be nil")
 	}
