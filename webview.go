@@ -29,7 +29,6 @@ import "C"
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"runtime"
 	"sync"
@@ -284,15 +283,12 @@ func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, request_id C.ulong,
 	if f != nil {
 		response, err := f(C.GoString(uri))
 		if err != nil {
-			// Return error response
-			errorData := []byte(fmt.Sprintf("<h1>Error</h1><p>%s</p>", err.Error()))
 			cContentType := C.CString("text/html")
 			defer C.free(unsafe.Pointer(cContentType))
-			cData := C.CString(string(errorData))
+			cData := C.CString("")
 			defer C.free(unsafe.Pointer(cData))
-			C.webview_uri_scheme_response(w, request_id, C.int(500), cContentType, cData, C.ulong(len(errorData)))
+			C.webview_uri_scheme_response(w, request_id, C.int(500), cContentType, cData, C.ulong(0))
 		} else {
-			// Return success response
 			cContentType := C.CString(response.ContentType)
 			defer C.free(unsafe.Pointer(cContentType))
 			cData := C.CString(string(response.Data))
