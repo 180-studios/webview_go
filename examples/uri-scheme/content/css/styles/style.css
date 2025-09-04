@@ -196,6 +196,69 @@ body.dark-theme .btn:hover {
     box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
 }
 
+/* Navigation styles */
+.nav-link {
+    display: inline-block;
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: rgba(102, 126, 234, 0.1);
+    transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+    background: rgba(102, 126, 234, 0.2);
+    transform: translateY(-1px);
+}
+
+.navigation-links {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* Image styles */
+.image-container {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.test-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.test-image:hover {
+    transform: scale(1.02);
+}
+
+.image-caption {
+    margin-top: 15px;
+    font-style: italic;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+/* Dark theme adjustments for new elements */
+body.dark-theme .nav-link {
+    color: #3498db;
+    background: rgba(52, 152, 219, 0.1);
+}
+
+body.dark-theme .nav-link:hover {
+    background: rgba(52, 152, 219, 0.2);
+}
+
+body.dark-theme .image-caption {
+    color: #bdc3c7;
+}
+
 /* Responsive design */
 @media (max-width: 600px) {
     .container {
@@ -212,5 +275,9 @@ body.dark-theme .btn:hover {
     
     .btn {
         width: 100%;
+    }
+    
+    .navigation-links {
+        flex-direction: column;
     }
 }
