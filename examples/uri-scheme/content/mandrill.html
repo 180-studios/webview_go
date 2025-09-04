@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mandrill Test Image - Virtual Host Mapping Demo</title>
+    <link rel="stylesheet" href="css/styles/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🦧 Mandrill Test Image</h1>
+            <p>Another classic test image from the USC SIPI database!</p>
+            <nav>
+                <a href="index.html" class="nav-link">← Back to Index</a>
+            </nav>
+        </header>
+        
+        <main>
+            <section class="demo-section">
+                <h2>About the Mandrill Image</h2>
+                <div class="info-card">
+                    <p><strong>Origin:</strong> USC SIPI Image Database</p>
+                    <p><strong>Subject:</strong> Mandrill (Mandrillus sphinx)</p>
+                    <p><strong>Usage:</strong> Standard test image for color image processing</p>
+                    <p><strong>Dimensions:</strong> 512×512 pixels</p>
+                    <p><strong>Significance:</strong> Popular for testing color reproduction and compression algorithms</p>
+                </div>
+            </section>
+
+            <section class="demo-section">
+                <h2>The Image</h2>
+                <div class="image-container">
+                    <img src="images/mandrill.jpeg" alt="Mandrill test image" class="test-image">
+                    <p class="image-caption">The colorful Mandrill test image - served via custom URI scheme!</p>
+                </div>
+            </section>
+
+            <section class="demo-section">
+                <h2>Technical Details</h2>
+                <div class="info-card">
+                    <p><strong>File Path:</strong> images/mandrill.jpeg</p>
+                    <p><strong>Content Type:</strong> image/jpeg</p>
+                    <p><strong>URI:</strong> <span id="image-uri"></span></p>
+                    <p><strong>Loading Status:</strong> <span id="loading-status">Loading...</span></p>
+                </div>
+            </section>
+
+            <section class="demo-section">
+                <h2>Navigation</h2>
+                <div class="navigation-links">
+                    <a href="index.html" class="btn">🏠 Back to Index</a>
+                    <a href="lenna.html" class="btn">🖼️ View Lena Image</a>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by webview_go with virtual host mapping</p>
+        </footer>
+    </div>
+
+    <script src="js/actions.js"></script>
+    <script>
+        // Additional Mandrill-specific JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            const img = document.querySelector('.test-image');
+            const loadingStatus = document.getElementById('loading-status');
+            const imageUri = document.getElementById('image-uri');
+            
+            imageUri.textContent = img.src;
+            
+            img.addEventListener('load', function() {
+                loadingStatus.textContent = '✅ Loaded successfully';
+                loadingStatus.style.color = '#28a745';
+            });
+            
+            img.addEventListener('error', function() {
+                loadingStatus.textContent = '❌ Failed to load';
+                loadingStatus.style.color = '#dc3545';
+            });
+        });
+    </script>
+</body>
+</html>

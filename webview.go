@@ -12,25 +12,27 @@ package webview
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 void CgoWebViewDispatch(webview_t w, uintptr_t arg);
 void CgoWebViewBind(webview_t w, const char *name, uintptr_t index);
 void CgoWebViewUnbind(webview_t w, const char *name);
 void CgoWebViewRegisterURIScheme(webview_t w, const char *scheme, uintptr_t index);
 void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme);
-void CgoWebViewURISchemeResponse(webview_t w, void *request, int status, const char *content_type, const char *data, size_t data_length);
-
-// Direct webview function declarations
-int webview_register_uri_scheme(webview_t w, const char *scheme, unsigned long index);
-int webview_unregister_uri_scheme(webview_t w, const char *scheme);
-void webview_uri_scheme_response(webview_t w, unsigned long request_id, int status, const char *content_type, const char *data, size_t data_length);
+void CgoWebViewURISchemeResponse(webview_t w, unsigned long request_id, int status, const char *content_type, const void *data, size_t data_length);
 */
 import "C"
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/fs"
+	"mime"
+	"net/url"
+	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -140,6 +142,10 @@ type WebView interface {
 
 	// UnregisterURIScheme removes a previously registered URI scheme handler.
 	UnregisterURIScheme(scheme string) error
+
+	// SetVirtualFileHosting sets up given uri scheme to automatically serve
+	// content from the given filesystem.
+	SetVirtualFileHosting(scheme string, contentFs fs.FS) error
 }
 
 type webview struct {
@@ -280,20 +286,25 @@ func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, request_id C.ulong,
 	f := uriSchemes[uintptr(index)]
 	m.Unlock()
 
+	// TOOD: confirm memory is freed by the underlying library, or work out how
+	// to safely free it after it is no longer needed
+
 	if f != nil {
 		response, err := f(C.GoString(uri))
 		if err != nil {
 			cContentType := C.CString("text/html")
-			defer C.free(unsafe.Pointer(cContentType))
-			cData := C.CString("")
-			defer C.free(unsafe.Pointer(cData))
-			C.webview_uri_scheme_response(w, request_id, C.int(500), cContentType, cData, C.ulong(0))
+			cData := unsafe.Pointer(C.CString(""))
+			C.CgoWebViewURISchemeResponse(w, request_id, C.int(500), cContentType, cData, C.ulong(0))
 		} else {
 			cContentType := C.CString(response.ContentType)
-			defer C.free(unsafe.Pointer(cContentType))
-			cData := C.CString(string(response.Data))
-			defer C.free(unsafe.Pointer(cData))
-			C.webview_uri_scheme_response(w, request_id, C.int(response.Status), cContentType, cData, C.ulong(len(response.Data)))
+
+			var cData unsafe.Pointer
+			if len(response.Data) > 0 {
+				cData = C.CBytes(response.Data)
+			} else {
+				cData = unsafe.Pointer(C.CString(""))
+			}
+			C.CgoWebViewURISchemeResponse(w, request_id, C.int(response.Status), cContentType, cData, C.ulong(len(response.Data)))
 		}
 	}
 }
@@ -394,14 +405,14 @@ func (w *webview) RegisterURIScheme(scheme string, handler func(uri string) (URI
 
 	cscheme := C.CString(scheme)
 	defer C.free(unsafe.Pointer(cscheme))
-	C.webview_register_uri_scheme(w.w, cscheme, C.ulong(index))
+	C.CgoWebViewRegisterURIScheme(w.w, cscheme, C.ulong(index))
 	return nil
 }
 
 func (w *webview) UnregisterURIScheme(scheme string) error {
 	cscheme := C.CString(scheme)
 	defer C.free(unsafe.Pointer(cscheme))
-	C.webview_unregister_uri_scheme(w.w, cscheme)
+	C.CgoWebViewUnregisterURIScheme(w.w, cscheme)
 
 	m.Lock()
 	defer m.Unlock()
@@ -410,4 +421,49 @@ func (w *webview) UnregisterURIScheme(scheme string) error {
 	delete(uriSchemes, idx)
 
 	return nil
+}
+
+func (w *webview) SetVirtualFileHosting(scheme string, contentFs fs.FS) error {
+	handler := func(uri string) (URISchemeResponse, error) {
+		resp := URISchemeResponse{
+			Status:      500,
+			ContentType: "text/html",
+			Data:        nil,
+		}
+
+		parsedURI, err := url.Parse(uri)
+		if err != nil {
+			resp.Status = 400
+			resp.Data = fmt.Appendf(nil, "invalid URI: %v", err)
+			return resp, nil
+		}
+
+		path := strings.TrimPrefix(parsedURI.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+
+		data, err := fs.ReadFile(contentFs, path)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				resp.Status = 404
+				resp.Data = fmt.Appendf(nil, "not found: %q", path)
+				return resp, nil
+			}
+			resp.Status = 500
+			resp.Data = fmt.Appendf(nil, "error: %v", err)
+			return resp, nil
+		}
+
+		contentType := mime.TypeByExtension(filepath.Ext(path))
+		if contentType == "" {
+			contentType = "text/html"
+		}
+
+		resp.Status = 200
+		resp.ContentType = contentType
+		resp.Data = data
+		return resp, nil
+	}
+	return w.RegisterURIScheme(scheme, handler)
 }

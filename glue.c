@@ -8,11 +8,6 @@ struct binding_context {
     uintptr_t index;
 };
 
-struct uri_scheme_context {
-    webview_t w;
-    uintptr_t index;
-};
-
 void _webviewDispatchGoCallback(void *);
 void _webviewBindingGoCallback(webview_t, char *, char *, uintptr_t);
 void _webviewUriSchemeGoCallback(webview_t, char *, unsigned long, uintptr_t);
@@ -55,6 +50,6 @@ void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme) {
 }
 
 void CgoWebViewURISchemeResponse(webview_t w, unsigned long request_id, int status, 
-                                 const char *content_type, const char *data, size_t data_length) {
-    webview_uri_scheme_response(w, request_id, status, content_type, data, data_length);
+                                 const char *content_type, const void *data, size_t data_length) {
+    webview_uri_scheme_response(w, request_id, status, content_type, (const char *)data, data_length);
 }

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Host Mapping Demo</title>
+    <link rel="stylesheet" href="css/styles/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Virtual Host Mapping Demo</h1>
+            <p>This content is served via custom URI scheme!</p>
+        </header>
+        
+        <main>
+            <section class="demo-section">
+                <h2>Current URI Information</h2>
+                <div class="info-card">
+                    <p><strong>Current URL:</strong> <span id="current-url"></span></p>
+                    <p><strong>Scheme:</strong> <span id="scheme"></span></p>
+                    <p><strong>Host:</strong> <span id="host"></span></p>
+                    <p><strong>Path:</strong> <span id="path"></span></p>
+                </div>
+            </section>
+
+            <section class="demo-section">
+                <h2>Interactive Demo</h2>
+                <div class="controls">
+                    <button id="color-btn" class="btn">Change Theme</button>
+                    <button id="counter-btn" class="btn">Increment Counter</button>
+                    <button id="alert-btn" class="btn">Show Alert</button>
+                </div>
+                <div class="results">
+                    <p>Counter: <span id="counter">0</span></p>
+                    <div id="message-area"></div>
+                </div>
+            </section>
+
+            <section class="demo-section">
+                <h2>File Loading Test</h2>
+                <p>This demonstrates that all assets are loaded via the custom URI scheme:</p>
+                <ul>
+                    <li>✅ HTML file (this page)</li>
+                    <li>✅ CSS file (css/styles/style.css)</li>
+                    <li>✅ JavaScript file (js/actions.js)</li>
+                </ul>
+                <p><em>Note: Files are now in nested directories to test path resolution!</em></p>
+            </section>
+
+            <section class="demo-section">
+                <h2>Test Images</h2>
+                <p>Explore classic test images served via virtual host mapping:</p>
+                <div class="navigation-links">
+                    <a href="lenna.html" class="btn">🖼️ Lena Test Image</a>
+                    <a href="mandrill.html" class="btn">🦧 Mandrill Test Image</a>
+                </div>
+                <p><em>These pages test image loading, content types, and binary file handling!</em></p>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by webview_go with virtual host mapping</p>
+        </footer>
+    </div>
+
+    <script src="js/actions.js"></script>
+</body>
+</html>

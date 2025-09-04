@@ -1,6 +1,14 @@
 package main
 
-import webview "github.com/180-studios/webview_go"
+import (
+	"embed"
+	"io/fs"
+
+	webview "github.com/180-studios/webview_go"
+)
+
+//go:embed content
+var content embed.FS
 
 func main() {
 	w := webview.New(false)
@@ -8,16 +16,12 @@ func main() {
 	w.SetTitle("Basic Example")
 	w.SetSize(480, 320, webview.HintNone)
 
-	w.RegisterURIScheme("app.local", handleURIScheme)
-	w.Navigate("app.local://alpha/beta/gamma/index.html")
+	serveFs, err := fs.Sub(content, "content")
+	if err != nil {
+		panic(err)
+	}
+	w.SetVirtualFileHosting("app.local", serveFs)
 
+	w.Navigate("app.local://index.html")
 	w.Run()
-}
-
-func handleURIScheme(uri string) (webview.URISchemeResponse, error) {
-	return webview.URISchemeResponse{
-		Status:      200,
-		ContentType: "text/html",
-		Data:        []byte("uri-scheme example" + "<hr>uri: " + uri),
-	}, nil
 }
