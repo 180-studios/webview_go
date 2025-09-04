@@ -157,6 +157,9 @@ typedef enum {
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include <stddef.h>
+
 /**
  * Creates a new webview instance.
  *
@@ -341,7 +344,7 @@ WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
  * @param index The callback index for the Go handler.
  * @return 1 on success, 0 on failure.
  */
-WEBVIEW_API int webview_register_uri_scheme(webview_t w, const char *scheme, uintptr_t index);
+WEBVIEW_API int webview_register_uri_scheme(webview_t w, const char *scheme, unsigned long index);
 
 /**
  * Unregisters a custom URI scheme handler.
@@ -362,7 +365,7 @@ WEBVIEW_API int webview_unregister_uri_scheme(webview_t w, const char *scheme);
  * @param data Response data.
  * @param data_length Length of the response data.
  */
-WEBVIEW_API void webview_uri_scheme_response(webview_t w, void *request, int status,
+WEBVIEW_API void webview_uri_scheme_response(webview_t w, unsigned long request_id, int status,
                                            const char *content_type, const char *data, size_t data_length);
 
 /**
@@ -1135,10 +1138,15 @@ constexpr auto webkit_web_view_run_javascript =
         "webkit_web_view_run_javascript");
 } // namespace webkit_symbols
 
+// Forward declaration for C callback
+extern "C" {
+void _webview_uri_scheme_cb(const char* uri, const char* path, unsigned long request_id, void *arg, unsigned long index);
+}
+
 // URI scheme callback context for C++ to Go communication
 struct uri_scheme_context {
-  uintptr_t index;
-  gtk_webkit_engine* engine;
+  unsigned long index;
+  void* engine;
 };
 
 class gtk_webkit_engine : public engine_base {
@@ -1297,7 +1305,7 @@ public:
   }
 
   // Register a custom URI scheme handler
-  bool register_uri_scheme(const std::string& scheme, uintptr_t index) {
+  bool register_uri_scheme(const std::string& scheme, unsigned long index) {
     if (m_uri_schemes.count(scheme) > 0) {
       return false; // Scheme already registered
     }
@@ -1315,7 +1323,8 @@ public:
     webkit_web_context_register_uri_scheme(context, scheme.c_str(),
       [](WebKitURISchemeRequest* request, gpointer user_data) {
         auto* ctx = static_cast<uri_scheme_context*>(user_data);
-        ctx->engine->handle_uri_scheme_request(request, ctx->index);
+        auto* engine = static_cast<gtk_webkit_engine*>(ctx->engine);
+        engine->handle_uri_scheme_request(request, ctx->index);
       }, ctx, nullptr);
     
     return true;
@@ -1336,15 +1345,50 @@ public:
     return true;
   }
 
+  // Send response for a URI scheme request
+  void uri_scheme_response(unsigned long request_id, int status, const char *content_type, const char *data, size_t data_length) {
+    auto it = m_pending_requests.find(request_id);
+    if (it == m_pending_requests.end()) {
+      return; // Request not found
+    }
+    
+    WebKitURISchemeRequest* request = it->second;
+    m_pending_requests.erase(it); // Remove from pending requests
+    
+    // Create a memory input stream from the data
+    GInputStream* stream = g_memory_input_stream_new_from_data(data, data_length, nullptr);
+    
+    // Create the response object
+    WebKitURISchemeResponse* response = webkit_uri_scheme_response_new(stream, data_length);
+    
+    // Set the status code and reason phrase
+    webkit_uri_scheme_response_set_status(response, status, nullptr);
+    
+    // Set the content type if provided
+    if (content_type && strlen(content_type) > 0) {
+      webkit_uri_scheme_response_set_content_type(response, content_type);
+    }
+    
+    // Finish the request with the response
+    webkit_uri_scheme_request_finish_with_response(request, response);
+    
+    // Clean up
+    g_object_unref(response);
+    g_object_unref(stream);
+  }
+
 private:
   // Handle URI scheme requests from WebKit
-  void handle_uri_scheme_request(WebKitURISchemeRequest* request, uintptr_t index) {
+  void handle_uri_scheme_request(WebKitURISchemeRequest* request, unsigned long index) {
     const char* uri = webkit_uri_scheme_request_get_uri(request);
     const char* path = webkit_uri_scheme_request_get_path(request);
     
-    // Call the Go callback through the C layer
-    // This will be implemented in the C glue layer
-    _webviewUriSchemeGoCallback(this, uri, path, index);
+    // Generate unique request ID and store the request
+    unsigned long request_id = m_next_request_id.fetch_add(1, std::memory_order_relaxed);
+    m_pending_requests[request_id] = request;
+    
+    // Call the C callback with extracted data and the request ID
+    _webview_uri_scheme_cb(uri, path, request_id, static_cast<void*>(this), index);
   }
 
   static char *get_string_from_js_result(WebKitJavascriptResult *r) {
@@ -1409,9 +1453,8 @@ private:
   
   // URI scheme management
   std::map<std::string, uri_scheme_context*> m_uri_schemes;
-  
-  // Forward declaration for Go callback
-  friend void _webviewUriSchemeGoCallback(gtk_webkit_engine* engine, const char* uri, const char* path, uintptr_t index);
+  std::map<unsigned long, WebKitURISchemeRequest*> m_pending_requests; // Track requests by ID
+  std::atomic<unsigned long> m_next_request_id{1}; // Atomic counter for request IDs
 };
 
 } // namespace detail
@@ -1521,7 +1564,7 @@ WEBVIEW_API const webview_version_info_t *webview_version(void) {
   return &webview::detail::library_version_info;
 }
 
-WEBVIEW_API int webview_register_uri_scheme(webview_t w, const char *scheme, uintptr_t index) {
+WEBVIEW_API int webview_register_uri_scheme(webview_t w, const char *scheme, unsigned long index) {
   auto *w_ = static_cast<webview::webview *>(w);
   return w_->register_uri_scheme(scheme, index) ? 1 : 0;
 }
@@ -1531,30 +1574,10 @@ WEBVIEW_API int webview_unregister_uri_scheme(webview_t w, const char *scheme) {
   return w_->unregister_uri_scheme(scheme) ? 1 : 0;
 }
 
-WEBVIEW_API void webview_uri_scheme_response(webview_t w, void *request, int status,
+WEBVIEW_API void webview_uri_scheme_response(webview_t w, unsigned long request_id, int status,
                                            const char *content_type, const char *data, size_t data_length) {
-  auto *req = static_cast<WebKitURISchemeRequest *>(request);
-  
-  // Create a memory input stream from the data
-  GInputStream* stream = g_memory_input_stream_new_from_data(data, data_length, nullptr);
-  
-  // Create the response object
-  WebKitURISchemeResponse* response = webkit_uri_scheme_response_new(stream, data_length);
-  
-  // Set the status code and reason phrase
-  webkit_uri_scheme_response_set_status(response, status, nullptr);
-  
-  // Set the content type if provided
-  if (content_type && strlen(content_type) > 0) {
-    webkit_uri_scheme_response_set_content_type(response, content_type);
-  }
-  
-  // Finish the request with the response
-  webkit_uri_scheme_request_finish_with_response(req, response);
-  
-  // Clean up
-  g_object_unref(response);
-  g_object_unref(stream);
+  auto *w_ = static_cast<webview::webview *>(w);
+  w_->uri_scheme_response(request_id, status, content_type, data, data_length);
 }
 
 #endif /* WEBVIEW_HEADER */

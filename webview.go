@@ -21,14 +21,15 @@ void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme);
 void CgoWebViewURISchemeResponse(webview_t w, void *request, int status, const char *content_type, const char *data, size_t data_length);
 
 // Direct webview function declarations
-int webview_register_uri_scheme(webview_t w, const char *scheme, uintptr_t index);
+int webview_register_uri_scheme(webview_t w, const char *scheme, unsigned long index);
 int webview_unregister_uri_scheme(webview_t w, const char *scheme);
-void webview_uri_scheme_response(webview_t w, void *request, int status, const char *content_type, const char *data, size_t data_length);
+void webview_uri_scheme_response(webview_t w, unsigned long request_id, int status, const char *content_type, const char *data, size_t data_length);
 */
 import "C"
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"runtime"
 	"sync"
@@ -275,26 +276,28 @@ func _webviewBindingGoCallback(w C.webview_t, id *C.char, req *C.char, index uin
 }
 
 //export _webviewUriSchemeGoCallback
-func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, path *C.char, index uintptr) {
+func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, path *C.char, request_id C.ulong, index uintptr) {
 	m.Lock()
 	f := uriSchemes[uintptr(index)]
-	requestPtr := uriRequests[uintptr(index)]
 	m.Unlock()
 
 	if f != nil {
 		response, err := f(C.GoString(uri), C.GoString(path))
 		if err != nil {
+			// Return error response
+			errorData := []byte(fmt.Sprintf("<h1>Error</h1><p>%s</p>", err.Error()))
 			cContentType := C.CString("text/html")
 			defer C.free(unsafe.Pointer(cContentType))
-			cData := C.CString("")
+			cData := C.CString(string(errorData))
 			defer C.free(unsafe.Pointer(cData))
-			C.webview_uri_scheme_response(w, requestPtr, C.int(500), cContentType, cData, C.ulong(0))
+			C.webview_uri_scheme_response(w, request_id, C.int(500), cContentType, cData, C.ulong(len(errorData)))
 		} else {
+			// Return success response
 			cContentType := C.CString(response.ContentType)
 			defer C.free(unsafe.Pointer(cContentType))
 			cData := C.CString(string(response.Data))
 			defer C.free(unsafe.Pointer(cData))
-			C.webview_uri_scheme_response(w, requestPtr, C.int(response.Status), cContentType, cData, C.ulong(len(response.Data)))
+			C.webview_uri_scheme_response(w, request_id, C.int(response.Status), cContentType, cData, C.ulong(len(response.Data)))
 		}
 	}
 }
@@ -381,7 +384,7 @@ func (w *webview) Unbind(name string) error {
 	return nil
 }
 
-func (w *webview) RegisterURIScheme(scheme string, handler func(uri, path string)) error {
+func (w *webview) RegisterURIScheme(scheme string, handler func(uri, path string) (URISchemeResponse, error)) error {
 	if handler == nil {
 		return errors.New("handler function cannot be nil")
 	}
@@ -394,7 +397,7 @@ func (w *webview) RegisterURIScheme(scheme string, handler func(uri, path string
 
 	cscheme := C.CString(scheme)
 	defer C.free(unsafe.Pointer(cscheme))
-	C.webview_register_uri_scheme(w.w, cscheme, C.uintptr_t(index))
+	C.webview_register_uri_scheme(w.w, cscheme, C.ulong(index))
 	return nil
 }
 
@@ -403,12 +406,4 @@ func (w *webview) UnregisterURIScheme(scheme string) error {
 	defer C.free(unsafe.Pointer(cscheme))
 	C.webview_unregister_uri_scheme(w.w, cscheme)
 	return nil
-}
-
-func (w *webview) RespondToURIScheme(request unsafe.Pointer, status int, contentType, data string) {
-	cContentType := C.CString(contentType)
-	defer C.free(unsafe.Pointer(cContentType))
-	cData := C.CString(data)
-	defer C.free(unsafe.Pointer(cData))
-	C.webview_uri_scheme_response(w.w, request, C.int(status), cContentType, cData, C.ulong(len(data)))
 }
