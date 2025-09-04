@@ -18,6 +18,6 @@ func handleURIScheme(uri string, path string) (webview.URISchemeResponse, error)
 	return webview.URISchemeResponse{
 		Status:      200,
 		ContentType: "text/html",
-		Data:        []byte("<h1>Hello from " + path + "</h1>"),
+		Data:        []byte("<h1>uri-scheme example</h1>" + "uri: " + uri + " path: " + path),
 	}, nil
 }
