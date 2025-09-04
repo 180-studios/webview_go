@@ -29,8 +29,13 @@ import "C"
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/fs"
+	"mime"
+	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -140,6 +145,10 @@ type WebView interface {
 
 	// UnregisterURIScheme removes a previously registered URI scheme handler.
 	UnregisterURIScheme(scheme string) error
+
+	// SetVirtualFileHosting sets up given uri scheme to automatically serve
+	// content from the given filesystem.
+	SetVirtualFileHosting(scheme string, contentFs fs.FS) error
 }
 
 type webview struct {
@@ -410,4 +419,38 @@ func (w *webview) UnregisterURIScheme(scheme string) error {
 	delete(uriSchemes, idx)
 
 	return nil
+}
+
+func (w *webview) SetVirtualFileHosting(scheme string, contentFs fs.FS) error {
+	handler := func(uri string) (URISchemeResponse, error) {
+		resp := URISchemeResponse{
+			Status:      500,
+			ContentType: "text/html",
+			Data:        nil,
+		}
+
+		path := strings.TrimPrefix(uri, scheme+"://")
+		data, err := fs.ReadFile(contentFs, path)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				resp.Status = 404
+				resp.Data = fmt.Appendf(nil, "not found: %q", path)
+				return resp, nil
+			}
+			resp.Status = 500
+			resp.Data = fmt.Appendf(nil, "error: %v", err)
+			return resp, nil
+		}
+
+		contentType := mime.TypeByExtension(filepath.Ext(path))
+		if contentType == "" {
+			contentType = "text/html"
+		}
+
+		resp.Status = 200
+		resp.ContentType = contentType
+		resp.Data = data
+		return resp, nil
+	}
+	return w.RegisterURIScheme(scheme, handler)
 }
