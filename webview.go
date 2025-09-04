@@ -422,6 +422,7 @@ func (w *webview) UnregisterURIScheme(scheme string) error {
 
 func (w *webview) SetVirtualFileHosting(scheme string, contentFs fs.FS) error {
 	handler := func(uri string) (URISchemeResponse, error) {
+		fmt.Printf("DEBUG: uri=%q\n", uri)
 		resp := URISchemeResponse{
 			Status:      500,
 			ContentType: "text/html",
@@ -439,9 +440,11 @@ func (w *webview) SetVirtualFileHosting(scheme string, contentFs fs.FS) error {
 		if path == "" {
 			path = "index.html"
 		}
+		fmt.Printf("DEBUG: path=%q\n", path)
 
 		data, err := fs.ReadFile(contentFs, path)
 		if err != nil {
+			fmt.Printf("DEBUG: error=%v\n", err)
 			if errors.Is(err, fs.ErrNotExist) {
 				resp.Status = 404
 				resp.Data = fmt.Appendf(nil, "not found: %q", path)
@@ -456,6 +459,7 @@ func (w *webview) SetVirtualFileHosting(scheme string, contentFs fs.FS) error {
 		if contentType == "" {
 			contentType = "text/html"
 		}
+		fmt.Printf("DEBUG: contentType=%q\n", contentType)
 
 		resp.Status = 200
 		resp.ContentType = contentType
