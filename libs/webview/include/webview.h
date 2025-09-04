@@ -345,8 +345,6 @@ WEBVIEW_API const webview_version_info_t *webview_version(void);
 
 #ifndef WEBVIEW_HEADER
 
-#define WEBVIEW_GTK
-
 #ifndef WEBVIEW_DEPRECATED
 #if __cplusplus >= 201402L
 #define WEBVIEW_DEPRECATED(reason) [[deprecated(reason)]]
