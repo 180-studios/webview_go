@@ -8,11 +8,6 @@ struct binding_context {
     uintptr_t index;
 };
 
-struct uri_scheme_context {
-    webview_t w;
-    uintptr_t index;
-};
-
 void _webviewDispatchGoCallback(void *);
 void _webviewBindingGoCallback(webview_t, char *, char *, uintptr_t);
 void _webviewUriSchemeGoCallback(webview_t, char *, unsigned long, uintptr_t);

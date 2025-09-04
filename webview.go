@@ -18,12 +18,7 @@ void CgoWebViewBind(webview_t w, const char *name, uintptr_t index);
 void CgoWebViewUnbind(webview_t w, const char *name);
 void CgoWebViewRegisterURIScheme(webview_t w, const char *scheme, uintptr_t index);
 void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme);
-void CgoWebViewURISchemeResponse(webview_t w, void *request, int status, const char *content_type, const char *data, size_t data_length);
-
-// Direct webview function declarations
-int webview_register_uri_scheme(webview_t w, const char *scheme, unsigned long index);
-int webview_unregister_uri_scheme(webview_t w, const char *scheme);
-void webview_uri_scheme_response(webview_t w, unsigned long request_id, int status, const char *content_type, const char *data, size_t data_length);
+void CgoWebViewURISchemeResponse(webview_t w, unsigned long request_id, int status, const char *content_type, const char *data, size_t data_length);
 */
 import "C"
 import (
@@ -297,13 +292,16 @@ func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, request_id C.ulong,
 			defer C.free(unsafe.Pointer(cContentType))
 			cData := C.CString("")
 			defer C.free(unsafe.Pointer(cData))
-			C.webview_uri_scheme_response(w, request_id, C.int(500), cContentType, cData, C.ulong(0))
+			C.CgoWebViewURISchemeResponse(w, request_id, C.int(500), cContentType, cData, C.ulong(0))
 		} else {
 			cContentType := C.CString(response.ContentType)
 			defer C.free(unsafe.Pointer(cContentType))
+
+			// TODO: This string conversion may corrupt binary data (images, etc.)
+			// For now, this works for text files but may cause issues with binary files
 			cData := C.CString(string(response.Data))
 			defer C.free(unsafe.Pointer(cData))
-			C.webview_uri_scheme_response(w, request_id, C.int(response.Status), cContentType, cData, C.ulong(len(response.Data)))
+			C.CgoWebViewURISchemeResponse(w, request_id, C.int(response.Status), cContentType, cData, C.ulong(len(response.Data)))
 		}
 	}
 }
@@ -404,14 +402,14 @@ func (w *webview) RegisterURIScheme(scheme string, handler func(uri string) (URI
 
 	cscheme := C.CString(scheme)
 	defer C.free(unsafe.Pointer(cscheme))
-	C.webview_register_uri_scheme(w.w, cscheme, C.ulong(index))
+	C.CgoWebViewRegisterURIScheme(w.w, cscheme, C.ulong(index))
 	return nil
 }
 
 func (w *webview) UnregisterURIScheme(scheme string) error {
 	cscheme := C.CString(scheme)
 	defer C.free(unsafe.Pointer(cscheme))
-	C.webview_unregister_uri_scheme(w.w, cscheme)
+	C.CgoWebViewUnregisterURIScheme(w.w, cscheme)
 
 	m.Lock()
 	defer m.Unlock()
