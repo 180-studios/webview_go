@@ -777,37 +777,19 @@ public:
 
   // Returns true if the library by the given name is currently loaded; otherwise false.
   static inline bool is_loaded(const std::string &name) {
-#ifdef _WIN32
-    auto handle = GetModuleHandleW(widen_string(name).c_str());
-#else
     auto handle = dlopen(name.c_str(), RTLD_NOW | RTLD_NOLOAD);
     if (handle) {
       dlclose(handle);
     }
-#endif
     return !!handle;
   }
 
 private:
-#ifdef _WIN32
-  using mod_handle_t = HMODULE;
-#else
   using mod_handle_t = void *;
-#endif
 
   static inline mod_handle_t load_library(const std::string &name) {
-#ifdef _WIN32
-    return load_library(widen_string(name));
-#else
     return dlopen(name.c_str(), RTLD_NOW);
-#endif
   }
-
-#ifdef _WIN32
-  static inline mod_handle_t load_library(const std::wstring &name) {
-    return LoadLibraryW(name.c_str());
-  }
-#endif
 
   mod_handle_t m_handle{};
 };
