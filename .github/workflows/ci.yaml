@@ -25,9 +25,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build example
-        run: >
+      - name: Build examples
+        run: |
           go build ./examples/basic
+          go build ./examples/uri-scheme
 
       - name: Run tests
         run: go test ./...
