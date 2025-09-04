@@ -723,18 +723,9 @@ public:
   explicit native_library(const std::string &name)
       : m_handle{load_library(name)} {}
 
-#ifdef _WIN32
-  explicit native_library(const std::wstring &name)
-      : m_handle{load_library(name)} {}
-#endif
-
   ~native_library() {
     if (m_handle) {
-#ifdef _WIN32
-      FreeLibrary(m_handle);
-#else
       dlclose(m_handle);
-#endif
       m_handle = nullptr;
     }
   }
