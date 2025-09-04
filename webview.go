@@ -16,6 +16,14 @@ package webview
 void CgoWebViewDispatch(webview_t w, uintptr_t arg);
 void CgoWebViewBind(webview_t w, const char *name, uintptr_t index);
 void CgoWebViewUnbind(webview_t w, const char *name);
+void CgoWebViewRegisterURIScheme(webview_t w, const char *scheme, uintptr_t index);
+void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme);
+void CgoWebViewURISchemeResponse(webview_t w, void *request, int status, const char *content_type, const char *data, size_t data_length);
+
+// Direct webview function declarations
+int webview_register_uri_scheme(webview_t w, const char *scheme, uintptr_t index);
+int webview_unregister_uri_scheme(webview_t w, const char *scheme);
+void webview_uri_scheme_response(webview_t w, void *request, int status, const char *content_type, const char *data, size_t data_length);
 */
 import "C"
 import (
@@ -113,17 +121,44 @@ type WebView interface {
 
 	// Removes a callback that was previously set by Bind.
 	Unbind(name string) error
+
+	// RegisterURIScheme registers a custom URI scheme handler.
+	// When a URL with the registered scheme is accessed, the handler function
+	// will be called with the URI and path. The handler should return a response
+	// and optionally an error. If an error is returned, a 500 error response
+	// will be automatically sent.
+	//
+	// Example:
+	//   w.RegisterURIScheme("myapp", func(uri, path string) (URISchemeResponse, error) {
+	//       return URISchemeResponse{
+	//           Status: 200,
+	//           ContentType: "text/html",
+	//           Data: []byte("<h1>Hello from " + path + "</h1>"),
+	//       }, nil
+	//   })
+	RegisterURIScheme(scheme string, handler func(uri, path string) (URISchemeResponse, error)) error
+
+	// UnregisterURIScheme removes a previously registered URI scheme handler.
+	UnregisterURIScheme(scheme string) error
 }
 
 type webview struct {
 	w C.webview_t
 }
 
+type URISchemeResponse struct {
+	Status      int
+	ContentType string
+	Data        []byte
+}
+
 var (
-	m        sync.Mutex
-	index    uintptr
-	dispatch = map[uintptr]func(){}
-	bindings = map[uintptr]func(id, req string) (interface{}, error){}
+	m           sync.Mutex
+	index       uintptr
+	dispatch    = map[uintptr]func(){}
+	bindings    = map[uintptr]func(id, req string) (interface{}, error){}
+	uriSchemes  = map[uintptr]func(uri, path string) (URISchemeResponse, error){}
+	uriRequests = map[uintptr]unsafe.Pointer{} // Track request pointers for responses
 )
 
 func boolToInt(b bool) C.int {
@@ -239,6 +274,31 @@ func _webviewBindingGoCallback(w C.webview_t, id *C.char, req *C.char, index uin
 	C.webview_return(w, id, C.int(status), s)
 }
 
+//export _webviewUriSchemeGoCallback
+func _webviewUriSchemeGoCallback(w C.webview_t, uri *C.char, path *C.char, index uintptr) {
+	m.Lock()
+	f := uriSchemes[uintptr(index)]
+	requestPtr := uriRequests[uintptr(index)]
+	m.Unlock()
+
+	if f != nil {
+		response, err := f(C.GoString(uri), C.GoString(path))
+		if err != nil {
+			cContentType := C.CString("text/html")
+			defer C.free(unsafe.Pointer(cContentType))
+			cData := C.CString("")
+			defer C.free(unsafe.Pointer(cData))
+			C.webview_uri_scheme_response(w, requestPtr, C.int(500), cContentType, cData, C.ulong(0))
+		} else {
+			cContentType := C.CString(response.ContentType)
+			defer C.free(unsafe.Pointer(cContentType))
+			cData := C.CString(string(response.Data))
+			defer C.free(unsafe.Pointer(cData))
+			C.webview_uri_scheme_response(w, requestPtr, C.int(response.Status), cContentType, cData, C.ulong(len(response.Data)))
+		}
+	}
+}
+
 func (w *webview) Bind(name string, f interface{}) error {
 	v := reflect.ValueOf(f)
 	// f must be a function
@@ -319,4 +379,36 @@ func (w *webview) Unbind(name string) error {
 	defer C.free(unsafe.Pointer(cname))
 	C.CgoWebViewUnbind(w.w, cname)
 	return nil
+}
+
+func (w *webview) RegisterURIScheme(scheme string, handler func(uri, path string)) error {
+	if handler == nil {
+		return errors.New("handler function cannot be nil")
+	}
+
+	m.Lock()
+	for ; uriSchemes[index] != nil; index++ {
+	}
+	uriSchemes[index] = handler
+	m.Unlock()
+
+	cscheme := C.CString(scheme)
+	defer C.free(unsafe.Pointer(cscheme))
+	C.webview_register_uri_scheme(w.w, cscheme, C.uintptr_t(index))
+	return nil
+}
+
+func (w *webview) UnregisterURIScheme(scheme string) error {
+	cscheme := C.CString(scheme)
+	defer C.free(unsafe.Pointer(cscheme))
+	C.webview_unregister_uri_scheme(w.w, cscheme)
+	return nil
+}
+
+func (w *webview) RespondToURIScheme(request unsafe.Pointer, status int, contentType, data string) {
+	cContentType := C.CString(contentType)
+	defer C.free(unsafe.Pointer(cContentType))
+	cData := C.CString(data)
+	defer C.free(unsafe.Pointer(cData))
+	C.webview_uri_scheme_response(w.w, request, C.int(status), cContentType, cData, C.ulong(len(data)))
 }
