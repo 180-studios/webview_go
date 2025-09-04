@@ -34,3 +34,16 @@ void CgoWebViewBind(webview_t w, const char *name, uintptr_t index) {
 void CgoWebViewUnbind(webview_t w, const char *name) {
     webview_unbind(w, name);
 }
+
+void CgoWebViewRegisterURIScheme(webview_t w, const char *scheme, uintptr_t index) {
+    webview_register_uri_scheme(w, scheme, index);
+}
+
+void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme) {
+    webview_unregister_uri_scheme(w, scheme);
+}
+
+void CgoWebViewURISchemeResponse(webview_t w, void *request, int status, 
+                                 const char *content_type, const char *data, size_t data_length) {
+    webview_uri_scheme_response(w, request, status, content_type, data, data_length);
+}
