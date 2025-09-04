@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"io/fs"
 	"mime"
+	"net/url"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -429,7 +430,18 @@ func (w *webview) SetVirtualFileHosting(scheme string, contentFs fs.FS) error {
 			Data:        nil,
 		}
 
-		path := strings.TrimPrefix(uri, scheme+"://")
+		parsedURI, err := url.Parse(uri)
+		if err != nil {
+			resp.Status = 400
+			resp.Data = fmt.Appendf(nil, "invalid URI: %v", err)
+			return resp, nil
+		}
+
+		path := strings.TrimPrefix(parsedURI.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+
 		data, err := fs.ReadFile(contentFs, path)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
