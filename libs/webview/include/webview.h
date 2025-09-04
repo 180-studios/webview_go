@@ -157,6 +157,9 @@ typedef enum {
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include <stddef.h>
+
 /**
  * Creates a new webview instance.
  *
@@ -332,6 +335,38 @@ WEBVIEW_API void webview_unbind(webview_t w, const char *name);
  */
 WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
                                 const char *result);
+
+/**
+ * Registers a custom URI scheme handler.
+ *
+ * @param w The webview instance.
+ * @param scheme The URI scheme to register (e.g., "myapp").
+ * @param index The callback index for the Go handler.
+ * @return 1 on success, 0 on failure.
+ */
+WEBVIEW_API int webview_register_uri_scheme(webview_t w, const char *scheme, unsigned long index);
+
+/**
+ * Unregisters a custom URI scheme handler.
+ *
+ * @param w The webview instance.
+ * @param scheme The URI scheme to unregister.
+ * @return 1 on success, 0 on failure.
+ */
+WEBVIEW_API int webview_unregister_uri_scheme(webview_t w, const char *scheme);
+
+/**
+ * Responds to a URI scheme request from the Go side.
+ *
+ * @param w The webview instance.
+ * @param request The WebKit URI scheme request.
+ * @param status HTTP status code (200 for success, 404 for not found, etc.).
+ * @param content_type MIME type of the response.
+ * @param data Response data.
+ * @param data_length Length of the response data.
+ */
+WEBVIEW_API void webview_uri_scheme_response(webview_t w, unsigned long request_id, int status,
+                                           const char *content_type, const char *data, size_t data_length);
 
 /**
  * Get the library's version information.
@@ -1103,6 +1138,15 @@ constexpr auto webkit_web_view_run_javascript =
         "webkit_web_view_run_javascript");
 } // namespace webkit_symbols
 
+extern "C" {
+void _webview_uri_scheme_cb(const char* uri, unsigned long request_id, void *arg, unsigned long index);
+}
+
+struct uri_scheme_context {
+  unsigned long index;
+  void* engine;
+};
+
 class gtk_webkit_engine : public engine_base {
 public:
   gtk_webkit_engine(bool debug, void *window)
@@ -1258,7 +1302,76 @@ public:
     }
   }
 
+  bool register_uri_scheme(const std::string& scheme, unsigned long index) {
+    if (m_uri_schemes.count(scheme) > 0) {
+      return false;
+    }
+    
+    WebKitWebContext* context = webkit_web_view_get_context(WEBKIT_WEB_VIEW(m_webview));
+    if (!context) {
+      return false;
+    }
+    
+    uri_scheme_context* ctx = new uri_scheme_context{index, this};
+    m_uri_schemes[scheme] = ctx;
+    
+    webkit_web_context_register_uri_scheme(context, scheme.c_str(),
+      [](WebKitURISchemeRequest* request, gpointer user_data) {
+        auto* ctx = static_cast<uri_scheme_context*>(user_data);
+        auto* engine = static_cast<gtk_webkit_engine*>(ctx->engine);
+        engine->handle_uri_scheme_request(request, ctx->index);
+      }, ctx, nullptr);
+    
+    return true;
+  }
+
+  bool unregister_uri_scheme(const std::string& scheme) {
+    auto it = m_uri_schemes.find(scheme);
+    if (it == m_uri_schemes.end()) {
+      return false;
+    }
+    
+    delete it->second;
+    m_uri_schemes.erase(it);
+    
+    return true;
+  }
+
+  void uri_scheme_response(unsigned long request_id, int status, const char *content_type, const char *data, size_t data_length) {
+    auto it = m_pending_requests.find(request_id);
+    if (it == m_pending_requests.end()) {
+      return;
+    }
+    
+    WebKitURISchemeRequest* request = it->second;
+    m_pending_requests.erase(it);
+    
+    GInputStream* stream = g_memory_input_stream_new_from_data(data, data_length, nullptr);
+    
+    WebKitURISchemeResponse* response = webkit_uri_scheme_response_new(stream, data_length);
+    
+    webkit_uri_scheme_response_set_status(response, status, nullptr);
+    
+    if (content_type && strlen(content_type) > 0) {
+      webkit_uri_scheme_response_set_content_type(response, content_type);
+    }
+    
+    webkit_uri_scheme_request_finish_with_response(request, response);
+    
+    g_object_unref(response);
+    g_object_unref(stream);
+  }
+
 private:
+  void handle_uri_scheme_request(WebKitURISchemeRequest* request, unsigned long index) {
+    const char* uri = webkit_uri_scheme_request_get_uri(request);
+    
+    unsigned long request_id = m_next_request_id.fetch_add(1, std::memory_order_relaxed);
+    m_pending_requests[request_id] = request;
+    
+    _webview_uri_scheme_cb(uri, request_id, static_cast<void*>(this), index);
+  }
+
   static char *get_string_from_js_result(WebKitJavascriptResult *r) {
     char *s;
 #if (WEBKIT_MAJOR_VERSION == 2 && WEBKIT_MINOR_VERSION >= 22) ||               \
@@ -1318,6 +1431,10 @@ private:
   bool m_owns_window{};
   GtkWidget *m_window{};
   GtkWidget *m_webview{};
+  
+  std::map<std::string, uri_scheme_context*> m_uri_schemes;
+  std::map<unsigned long, WebKitURISchemeRequest*> m_pending_requests;
+  std::atomic<unsigned long> m_next_request_id{1};
 };
 
 } // namespace detail
@@ -1425,6 +1542,22 @@ WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
 
 WEBVIEW_API const webview_version_info_t *webview_version(void) {
   return &webview::detail::library_version_info;
+}
+
+WEBVIEW_API int webview_register_uri_scheme(webview_t w, const char *scheme, unsigned long index) {
+  auto *w_ = static_cast<webview::webview *>(w);
+  return w_->register_uri_scheme(scheme, index) ? 1 : 0;
+}
+
+WEBVIEW_API int webview_unregister_uri_scheme(webview_t w, const char *scheme) {
+  auto *w_ = static_cast<webview::webview *>(w);
+  return w_->unregister_uri_scheme(scheme) ? 1 : 0;
+}
+
+WEBVIEW_API void webview_uri_scheme_response(webview_t w, unsigned long request_id, int status,
+                                           const char *content_type, const char *data, size_t data_length) {
+  auto *w_ = static_cast<webview::webview *>(w);
+  w_->uri_scheme_response(request_id, status, content_type, data, data_length);
 }
 
 #endif /* WEBVIEW_HEADER */

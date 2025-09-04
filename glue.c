@@ -8,8 +8,14 @@ struct binding_context {
     uintptr_t index;
 };
 
+struct uri_scheme_context {
+    webview_t w;
+    uintptr_t index;
+};
+
 void _webviewDispatchGoCallback(void *);
 void _webviewBindingGoCallback(webview_t, char *, char *, uintptr_t);
+void _webviewUriSchemeGoCallback(webview_t, char *, unsigned long, uintptr_t);
 
 static void _webview_dispatch_cb(webview_t w, void *arg) {
     _webviewDispatchGoCallback(arg);
@@ -18,6 +24,11 @@ static void _webview_dispatch_cb(webview_t w, void *arg) {
 static void _webview_binding_cb(const char *id, const char *req, void *arg) {
     struct binding_context *ctx = (struct binding_context *) arg;
     _webviewBindingGoCallback(ctx->w, (char *)id, (char *)req, ctx->index);
+}
+
+void _webview_uri_scheme_cb(const char* uri, unsigned long request_id, void *arg, unsigned long index) {
+    webview_t w = (webview_t)arg;
+    _webviewUriSchemeGoCallback(w, (char *)uri, request_id, index);
 }
 
 void CgoWebViewDispatch(webview_t w, uintptr_t arg) {
@@ -33,4 +44,17 @@ void CgoWebViewBind(webview_t w, const char *name, uintptr_t index) {
 
 void CgoWebViewUnbind(webview_t w, const char *name) {
     webview_unbind(w, name);
+}
+
+void CgoWebViewRegisterURIScheme(webview_t w, const char *scheme, uintptr_t index) {
+    webview_register_uri_scheme(w, scheme, index);
+}
+
+void CgoWebViewUnregisterURIScheme(webview_t w, const char *scheme) {
+    webview_unregister_uri_scheme(w, scheme);
+}
+
+void CgoWebViewURISchemeResponse(webview_t w, unsigned long request_id, int status, 
+                                 const char *content_type, const char *data, size_t data_length) {
+    webview_uri_scheme_response(w, request_id, status, content_type, data, data_length);
 }
