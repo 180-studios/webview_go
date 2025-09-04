@@ -133,15 +133,11 @@ typedef void *webview_t;
 
 /// Native handle kind. The actual type depends on the backend.
 typedef enum {
-  /// Top-level window. @c GtkWindow pointer (GTK), @c NSWindow pointer (Cocoa)
-  /// or @c HWND (Win32).
+  /// Top-level window. @c GtkWindow pointer (GTK)
   WEBVIEW_NATIVE_HANDLE_KIND_UI_WINDOW,
-  /// Browser widget. @c GtkWidget pointer (GTK), @c NSView pointer (Cocoa) or
-  /// @c HWND (Win32).
+  /// Browser widget. @c GtkWidget pointer (GTK)
   WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET,
-  /// Browser controller. @c WebKitWebView pointer (WebKitGTK), @c WKWebView
-  /// pointer (Cocoa/WebKit) or @c ICoreWebView2Controller pointer
-  /// (Win32/WebView2).
+  /// Browser controller. @c WebKitWebView pointer (WebKitGTK)
   WEBVIEW_NATIVE_HANDLE_KIND_BROWSER_CONTROLLER
 } webview_native_handle_kind_t;
 
@@ -166,18 +162,11 @@ extern "C" {
  *
  * @param debug Enable developer tools if supported by the backend.
  * @param window Optional native window handle, i.e. @c GtkWindow pointer
- *        @c NSWindow pointer (Cocoa) or @c HWND (Win32). If non-null,
- *        the webview widget is embedded into the given window, and the
- *        caller is expected to assume responsibility for the window as
+ *        If non-null, the webview widget is embedded into the given window,
+ *        and the caller is expected to assume responsibility for the window as
  *        well as application lifecycle. If the window handle is null,
  *        a new window is created and both the window and application
  *        lifecycle are managed by the webview instance.
- * @remark Win32: The function also accepts a pointer to @c HWND (Win32) in the
- *         window parameter for backward compatibility.
- * @remark Win32/WebView2: @c CoInitializeEx should be called with
- *         @c COINIT_APARTMENTTHREADED before attempting to call this function
- *         with an existing window. Omitting this step may cause WebView2
- *         initialization to fail.
  * @return @c NULL on failure. Creation can fail for various reasons such
  *         as when required runtime dependencies are missing or when window
  *         creation fails.
@@ -219,8 +208,7 @@ webview_dispatch(webview_t w, void (*fn)(webview_t w, void *arg), void *arg);
 
 /**
  * Returns the native handle of the window associated with the webview instance.
- * The handle can be a @c GtkWindow pointer (GTK), @c NSWindow pointer (Cocoa)
- * or @c HWND (Win32).
+ * The handle can be a @c GtkWindow pointer (GTK)
  *
  * @param w The webview instance.
  * @return The handle of the native window.
